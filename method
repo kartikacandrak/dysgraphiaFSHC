@@ -1,0 +1,132 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import StratifiedKFold, cross_val_score, cross_val_predict
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF, Matern, DotProduct
+from sklearn.metrics import classification_report
+import warnings
+warnings.filterwarnings('ignore')
+
+# === 2. Fisher Score function ===
+def fisher_score(feature, labels):
+    classes = np.unique(labels)
+    overall_mean = np.mean(feature)
+    numerator = 0
+    denominator = 0
+    for c in classes:
+        feature_c = feature[labels == c]
+        n_c = len(feature_c)
+        mean_c = np.mean(feature_c)
+        var_c = np.var(feature_c)
+        numerator += n_c * (mean_c - overall_mean)**2
+        denominator += n_c * var_c
+    if denominator == 0:
+        return 0
+    return numerator / denominator
+
+# === 3. Hitung Fisher Score semua fitur ===
+fisher_scores = []
+for f in feature_cols:
+    score = fisher_score(df[f].values, df['diag'].values)
+    fisher_scores.append({'feature': f, 'score': score})
+fisher_df = pd.DataFrame(fisher_scores).sort_values(by='score', ascending=False)
+sorted_features = fisher_df['feature'].tolist()
+
+# === 4. Fungsi seleksi fitur Hill Climbing ===
+def fisher_hill_climbing(df, sorted_features, model, model_name=''):
+    best_acc = 0
+    best_features = []
+    no_improve_count = 0
+    max_no_improve = 10
+    acc_list = []
+    selected_features = []
+    df_train = df[sorted_features]
+    y_train = df['diag'].values
+
+    for feat in sorted_features:
+        selected_features.append(feat)
+        df_train = df[selected_features].values
+
+        # Standarisasi untuk SVM dan KNN
+        if model_name in ['svm', 'knn']:
+            scaler = StandardScaler()
+            df_train = scaler.fit_transform(df_train)
+
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        cv_scores = cross_val_score(model, df_train, y_train, cv=cv, scoring='accuracy')
+        mean_cv_score = np.mean(cv_scores)
+        acc_list.append(mean_cv_score)
+
+        print(f"[{model_name}] Menambahkan fitur: {feat} | CV Acc: {mean_cv_score:.4f}")
+
+        if mean_cv_score > best_acc:
+            best_acc = mean_cv_score
+            best_features = selected_features.copy()
+            no_improve_count = 0
+        else:
+            no_improve_count += 1
+
+        if no_improve_count >= max_no_improve:
+            print(f"Akurasi tidak meningkat selama {max_no_improve} iterasi. Stop.")
+            break
+
+    return best_features, best_acc, acc_list
+
+# === 5. Definisikan model-model ===
+models_to_run = {
+    'svm_linear': SVC(kernel='linear', random_state=42, C=1.0),
+    'random_forest': RandomForestClassifier(n_estimators=200, random_state=42),
+    'adaboost': AdaBoostClassifier(n_estimators=200, random_state=42),
+    'knn_euclidean_5': KNeighborsClassifier(n_neighbors=5, metric='euclidean'),
+    'knn_euclidean_10': KNeighborsClassifier(n_neighbors=10, metric='euclidean'),
+    'knn_manhattan_5': KNeighborsClassifier(n_neighbors=5, metric='manhattan'),
+    'knn_manhattan_10': KNeighborsClassifier(n_neighbors=10, metric='manhattan'),
+    'decision_tree_none': DecisionTreeClassifier(max_depth=None, random_state=42),
+    'decision_tree_5': DecisionTreeClassifier(max_depth=5, random_state=42),
+    'decision_tree_10': DecisionTreeClassifier(max_depth=10, random_state=42),
+    'gradient_boosting_lr_0.1': GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, random_state=42),
+    'gradient_boosting_lr_0.01': GradientBoostingClassifier(n_estimators=100, learning_rate=0.01, random_state=42),
+    'gaussian_nb': GaussianNB(var_smoothing=1e-9),
+    'gaussian_process_rbf': GaussianProcessClassifier(kernel=RBF(), random_state=42)
+}
+
+# === 6. Jalankan Fisher Hill Climbing dan tampilkan classification report dengan cross_val_predict ===
+best_results = {}
+
+for name, mdl in models_to_run.items():
+    print(f"\n=== Evaluasi model: {name} ===")
+    best_f, best_a, acc_l = fisher_hill_climbing(df, sorted_features, mdl, model_name=name.split('_')[0])
+    best_results[name] = {
+        'best_features': best_f,
+        'best_accuracy': best_a,
+        'acc_list': acc_l
+    }
+
+    df_test = df[best_f].values
+    y_test = df['diag'].values
+
+    # Standardisasi jika perlu
+    if name.split('_')[0] in ['svm', 'knn']:
+        scaler = StandardScaler()
+        X_test = scaler.fit_transform(X_test)
+
+    # Prediksi menggunakan cross_val_predict supaya classification report valid
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    y_pred_cv = cross_val_predict(mdl, df_test, y_test, cv=cv)
+
+    print(f"\nClassification Report untuk {name} dengan fitur terbaik (cross-validation):")
+    print(classification_report(y, y_pred_cv))
+
+# === 7. Summary hasil ===
+print("\n\n=== Summary Best Results ===")
+for k, v in best_results.items():
+    print(f"Model: {k}")
+    print(f" - Jumlah fitur terbaik: {len(v['best_features'])}")
+    print(f" - Akurasi terbaik (CV): {v['best_accuracy']:.4f}")
+    print(f" - Fitur terbaik: {v['best_features']}\n")
