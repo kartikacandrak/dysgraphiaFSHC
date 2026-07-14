@@ -12,7 +12,6 @@ from sklearn.gaussian_process.kernels import RBF, Matern, DotProduct
 from sklearn.metrics import classification_report
 import warnings
 warnings.filterwarnings('ignore')
-
 # === 2. Fisher Score function ===
 def fisher_score(feature, labels):
     classes = np.unique(labels)
@@ -29,7 +28,6 @@ def fisher_score(feature, labels):
     if denominator == 0:
         return 0
     return numerator / denominator
-
 # === 3. Hitung Fisher Score semua fitur ===
 fisher_scores = []
 for f in feature_cols:
@@ -37,7 +35,6 @@ for f in feature_cols:
     fisher_scores.append({'feature': f, 'score': score})
 fisher_df = pd.DataFrame(fisher_scores).sort_values(by='score', ascending=False)
 sorted_features = fisher_df['feature'].tolist()
-
 # === 4. Fungsi seleksi fitur Hill Climbing ===
 def fisher_hill_climbing(df, sorted_features, model, model_name=''):
     best_acc = 0
@@ -77,7 +74,6 @@ def fisher_hill_climbing(df, sorted_features, model, model_name=''):
             break
 
     return best_features, best_acc, acc_list
-
 # === 5. Definisikan model-model ===
 models_to_run = {
     'svm_linear': SVC(kernel='linear', random_state=42, C=1.0),
@@ -98,7 +94,6 @@ models_to_run = {
 
 # === 6. Jalankan Fisher Hill Climbing dan tampilkan classification report dengan cross_val_predict ===
 best_results = {}
-
 for name, mdl in models_to_run.items():
     print(f"\n=== Evaluasi model: {name} ===")
     best_f, best_a, acc_l = fisher_hill_climbing(df, sorted_features, mdl, model_name=name.split('_')[0])
