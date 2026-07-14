@@ -2,10 +2,8 @@
 df_train, df_test = train_test_split(
     df, test_size=0.15, stratify=df['diag'], random_state=42
 )
-
 # === 6. Pilih fitur numerik (dari data training saja) ===
 feature_cols = [c for c in df_train.columns if c != 'diag' and np.issubdtype(df_train[c].dtype, np.number)]
-
 # === 7. Fungsi Fisher Score dengan Stabilitas Numerik ===
 def fisher_score(feature, labels):
     classes = np.unique(labels)
@@ -24,20 +22,16 @@ def fisher_score(feature, labels):
         
     # Epsilon 1e-9 untuk kestabilan pembagian
     return numerator / (denominator + 1e-9)
-
 # === 8. Hitung Fisher Score (Hanya Menggunakan df_train) ===
 fisher_scores = []
 for f in feature_cols:
     score = fisher_score(df_train[f].values, df_train['diag'].values)
     fisher_scores.append({'feature': f, 'score': score})
-
 fisher_df = pd.DataFrame(fisher_scores).sort_values(by='score', ascending=False)
 sorted_features = fisher_df['feature'].tolist()
-
 # === 9. Seleksi Fitur Adaptif berdasarkan Fisher Hill Climbing (FHC) dan SVM Model ===
 kernels = ['linear', 'rbf', 'poly', 'sigmoid']  # List of SVM kernel types
 best_results = {}
-
 for kernel in kernels:
     print(f"\nEvaluating SVM with kernel: {kernel}")
 
@@ -66,13 +60,10 @@ for kernel in kernels:
         # Cross-validation internal pada data training
         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
         cv_scores = cross_val_score(model, X_tr_scaled, y_tr, cv=cv, scoring='accuracy')
-
         mean_cv_score = np.mean(cv_scores)
         acc_list.append(mean_cv_score)
-
         print(f"> Menambahkan fitur: {feat}")
         print(f"  Jumlah fitur sekarang: {len(selected_features)} | Acc: {mean_cv_score:.4f}")
-
         # Cek peningkatan akurasi
         if mean_cv_score > best_acc:
             best_acc = mean_cv_score
@@ -88,35 +79,29 @@ for kernel in kernels:
         if no_improve_count >= max_no_improve:
             print(f"Proses dihentikan.")
             break
-
     # Simpan konfigurasi fitur terbaik untuk kernel ini
     best_results[kernel] = {
         'best_features': best_features,
         'best_accuracy': best_acc,
         'acc_list': acc_list
     }
-
     # === 10. Evaluasi Sesungguhnya Menggunakan Data Uji (df_test) ===
     # Siapkan data latih dan uji menggunakan subset fitur terbaik
     X_train_best = df_train[best_features].values
     y_train_best = df_train['diag'].values
     X_test_best = df_test[best_features].values
     y_test_best = df_test['diag'].values
-
     # Scaling yang bersih dan terisolasi
     scaler_final = StandardScaler()
     X_train_best_scaled = scaler_final.fit_transform(X_train_best)
     X_test_best_scaled = scaler_final.transform(X_test_best)
-
     # Latih model akhir dengan seluruh data latih
     final_model = SVC(kernel=kernel, C=1.0, gamma='scale', random_state=42)
     final_model.fit(X_train_best_scaled, y_train_best)
-    
     # Prediksi data uji sesungguhnya
     y_pred_test = final_model.predict(X_test_best_scaled)
     test_acc = accuracy_score(y_test_best, y_pred_test)
     best_results[kernel]['test_accuracy'] = test_acc
-
 # === 11. Tampilkan Ringkasan Hasil ===
 print("\n\n=== SUMMARY BEST RESULTS ===")
 for kernel in kernels:
@@ -124,7 +109,6 @@ for kernel in kernels:
     print(f" - Jumlah fitur terpilih: {len(best_results[kernel]['best_features'])}")
     print(f" - Akurasi : {best_results[kernel]['best_accuracy']:.4f}")
     print(f" - Fitur terbaik: {best_results[kernel]['best_features']}")
-
 # === 12. Visualisasi Grafik Perbandingan Model ===
 plt.figure(figsize=(8, 6))
 for kernel in kernels:
@@ -135,7 +119,6 @@ for kernel in kernels:
         linestyle='-', 
         label=f'{kernel}'
     )
-
 plt.title('Kernel Comparison')
 plt.xlabel('Number of Features')
 plt.ylabel('Cross-Validation Accuracy (Train)')
