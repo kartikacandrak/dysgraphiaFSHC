@@ -10,27 +10,32 @@ from sklearn.svm import SVC
 # 1. Load Dataset
 # =========================
 df = pd.read_csv("/content/drive/MyDrive/DysgraphiaDB1/onlineHWfeature.csv")
+
 # =========================
 # 2. Drop non-feature columns
 # =========================
 non_features = ['filename', 'age', 'sex', 'hand', 'count']
 df = df.drop(columns=[c for c in non_features if c in df.columns], errors='ignore')
+
 # =========================
 # 3. Drop rows without label
 # =========================
 df = df.dropna(subset=['diag'])
+
 # =========================
 # 4. Encode label if needed
 # =========================
 if df['diag'].dtype == object:
     df['diag'] = df['diag'].astype('category').cat.codes
+
 # =========================
-# 5. Split Train & Validation Set
+# 5. Split Train & Validation Set (Mencegah Data Leakage)
 # =========================
 # Kita pisahkan 85% Train dan 15% Validation secara stratified
 df_train, df_val = train_test_split(
     df, test_size=0.15, stratify=df['diag'], random_state=42
 )
+
 # =========================
 # 6. Select numeric feature columns
 # =========================
@@ -38,6 +43,7 @@ feature_cols = [
     c for c in df_train.columns
     if c != 'diag' and np.issubdtype(df_train[c].dtype, np.number)
 ]
+
 # =========================
 # 7. Fisher Score Function (Dengan Epsilon Stabilitas)
 # =========================
@@ -45,6 +51,7 @@ def fisher_score(feature, labels):
     classes = np.unique(labels[~np.isnan(labels)])
     overall_mean = np.nanmean(feature)
     numerator, denominator = 0.0, 0.0
+
     for c in classes:
         feature_c = feature[labels == c]
         if len(feature_c) == 0:
@@ -58,6 +65,7 @@ def fisher_score(feature, labels):
 
     # Ditambahkan epsilon 1e-9 untuk kestabilan numerik pembagian
     return numerator / (denominator + 1e-9)
+
 # =========================
 # 8. Compute Fisher Scores (Hanya Menggunakan df_train!)
 # =========================
@@ -67,8 +75,10 @@ for f in feature_cols:
         'feature': f,
         'score': fisher_score(df_train[f].values, df_train['diag'].values)
     })
+
 fisher_df = pd.DataFrame(fisher_scores).sort_values(by='score', ascending=False)
 sorted_features = fisher_df['feature'].tolist()
+
 # =========================
 # 9. Fisher Hill Climbing + SVM (Menggunakan Train-Val Split)
 # =========================
@@ -78,7 +88,7 @@ best_results = {}
 
 for kernel in kernels:
     for max_no_improve in max_no_improve_list:
-        print(f"\n Kernel: {kernel} | Plateau = {max_no_improve}")
+        print(f"\nKernel: {kernel} | max_no_improve = {max_no_improve}")
 
         best_acc = 0.0
         best_features = []
@@ -94,7 +104,7 @@ for kernel in kernels:
             # Memisahkan X & y untuk train dan validation berdasarkan fitur terpilih
             X_train = df_train[selected_features]
             y_train = df_train['diag']
-
+            
             X_val = df_val[selected_features]
             y_val = df_val['diag']
 
@@ -122,7 +132,7 @@ for kernel in kernels:
                 no_improve_count += 1
 
             if no_improve_count >= max_no_improve:
-                print(f"⛔ Plateau reached ({max_no_improve}). Stop.")
+                print(f"Plateau reached ({max_no_improve}). Stop.")
                 break
 
         best_results[(kernel, max_no_improve)] = {
@@ -131,10 +141,12 @@ for kernel in kernels:
             'acc_list': acc_list,
             'feature_list': feature_count_list
         }
+
 # =========================
 # 10. Visualisasi Grafik Performa Evaluasi Validation Set
 # =========================
 plt.figure(figsize=(8, 6))
+
 # Ambil kurva referensi (plateau terbesar)
 ref_result = best_results[('linear', 25)]
 plt.plot(
@@ -144,6 +156,7 @@ plt.plot(
     linewidth=2,
     label='Feature Selection Progression'
 )
+
 colors = {
     5: 'red',
     10: 'green',
@@ -151,11 +164,14 @@ colors = {
     20: 'orange',
     25: 'purple'
 }
+
 # Plot titik berhenti tiap konfigurasi plateau
 for plateau, color in colors.items():
     result = best_results[('linear', plateau)]
+
     x_stop = result['feature_list'][-1]
     y_stop = result['acc_list'][-1]
+
     plt.scatter(
         x_stop,
         y_stop,
@@ -164,6 +180,7 @@ for plateau, color in colors.items():
         zorder=5,
         label=f'Plateau Threshold = {plateau}'
     )
+
     plt.annotate(
         f'{x_stop} feat', #({y_stop:.4f})
         (x_stop, y_stop),
@@ -172,6 +189,7 @@ for plateau, color in colors.items():
         fontsize=9,
         weight='bold'
     )
+
 plt.xlabel('Number of Selected Features')
 plt.ylabel('Validation Set Accuracy')
 plt.title('Plateau Comparison on Validation Set')
