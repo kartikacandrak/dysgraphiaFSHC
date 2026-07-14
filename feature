@@ -2,6 +2,7 @@ import os
 # List isi folder
 folder_path = '/content/drive/MyDrive/DysgraphiaDB1'
 excel_path ='/content/drive/MyDrive/DysgraphiaDB1/data2_SciRep_pub.xlsx'
+
 svc_files = [f for f in os.listdir(folder_path) if f.endswith('.svc')]
 #print("Ditemukan file:", svc_files)
 # === Baca file Excel untuk metadata diagnosa ===
