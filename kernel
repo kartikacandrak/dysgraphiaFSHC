@@ -1,25 +1,3 @@
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
-from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
-from sklearn.metrics import classification_report, accuracy_score
-import matplotlib.pyplot as plt
-
-# === 1. Baca dataset ===
-df = pd.read_csv("/content/drive/MyDrive/DysgraphiaDB1/onlineHWfeature.csv")
-
-# === 2. Hapus kolom non-numerik dan non-fitur ===
-non_features = ['filename', 'age', 'sex', 'hand', 'count']
-df = df.drop(columns=[col for col in non_features if col in df.columns], errors='ignore')
-
-# === 3. Drop baris tanpa label diagnosis ===
-df = df.dropna(subset=['diag'])
-
-# === 4. Pastikan 'diag' numerik ===
-if df['diag'].dtype == object:
-    df['diag'] = df['diag'].astype('category').cat.codes
-
 # === 5. Train-Test Split (85% Train, 15% Test - Stratified) ===
 df_train, df_test = train_test_split(
     df, test_size=0.15, stratify=df['diag'], random_state=42
@@ -66,7 +44,7 @@ for kernel in kernels:
     best_acc = 0.0
     best_features = []
     no_improve_count = 0
-    max_no_improve = 20
+    max_no_improve = 10
 
     acc_list = []
     selected_features = []
@@ -93,7 +71,7 @@ for kernel in kernels:
         acc_list.append(mean_cv_score)
 
         print(f"> Menambahkan fitur: {feat}")
-        print(f"  Jumlah fitur sekarang: {len(selected_features)} | CV Akurasi Latih: {mean_cv_score:.4f}")
+        print(f"  Jumlah fitur sekarang: {len(selected_features)} | Acc: {mean_cv_score:.4f}")
 
         # Cek peningkatan akurasi
         if mean_cv_score > best_acc:
@@ -158,7 +136,7 @@ for kernel in kernels:
         label=f'{kernel}'
     )
 
-plt.title('Kernel Comparison on Training CV')
+plt.title('Kernel Comparison')
 plt.xlabel('Number of Features')
 plt.ylabel('Cross-Validation Accuracy (Train)')
 plt.legend()
