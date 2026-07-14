@@ -1,0 +1,76 @@
+import pandas as pd
+import numpy as np
+import cv2
+import os
+from google.colab import drive
+
+# 1. Mount Google Drive
+drive.mount('/content/drive')
+
+# 2. Tentukan Path
+folder_path = '/content/drive/MyDrive/DysgraphiaDB1'
+output_dir = '/content/drive/MyDrive/DysgraphiaDB1_images'
+
+# Buat folder output jika belum ada
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+    print(f"Folder {output_dir} berhasil dibuat.")
+
+def process_svc_file(svc_path, save_path):
+    try:
+        # Baca file SVC (skip baris pertama header)
+        df = pd.read_csv(svc_path, sep=r'\s+', header=None, skiprows=1)
+
+        # Ambil kolom X, Y, dan Pen Status (kolom 3)
+        x = df[0].values
+        y = df[1].values
+        pen_status = df[3].values
+
+        # Normalisasi Posisi
+        y_fixed = np.max(y) - y
+        x_norm = x - np.min(x)
+        y_norm = y_fixed - np.min(y_fixed)
+
+        # Skalakan gambar (lebar 1000px)
+        scale = 1000 / np.max(x_norm) if np.max(x_norm) > 0 else 1
+        x_final = (x_norm * scale).astype(int)
+        y_final = (y_norm * scale).astype(int)
+
+        # Buat Canvas
+        padding = 50
+        w = int(np.max(x_final) + (2 * padding))
+        h = int(np.max(y_final) + (2 * padding))
+        canvas = np.zeros((h, w), dtype=np.uint8)
+
+        # Gambar garis putih
+        for i in range(1, len(x_final)):
+            if int(pen_status[i]) == 1 and int(pen_status[i-1]) == 1:
+                pt1 = (x_final[i-1] + padding, y_final[i-1] + padding)
+                pt2 = (x_final[i] + padding, y_final[i] + padding)
+                cv2.line(canvas, pt1, pt2, 255, thickness=3, lineType=cv2.LINE_AA)
+
+        # Invert agar menjadi Hitam di atas Putih
+        final_image = cv2.bitwise_not(canvas)
+
+        # Simpan hasil
+        cv2.imwrite(save_path, final_image)
+        return True
+    except Exception as e:
+        print(f"Error pada file {svc_path}: {e}")
+        return False
+
+# 3. Looping semua file .svc di folder
+print("Memulai proses konversi...")
+files = [f for f in os.listdir(folder_path) if f.endswith('.svc')]
+
+for filename in files:
+    input_file = os.path.join(folder_path, filename)
+    # Ubah ekstensi .svc menjadi .png untuk nama file output
+    output_filename = filename.replace('.svc', '.png')
+    output_file = os.path.join(output_dir, output_filename)
+
+    success = process_svc_file(input_file, output_file)
+    if success:
+        print(f"Berhasil: {filename} -> {output_filename}")
+
+print(f"\nSelesai! Semua gambar disimpan di: {output_dir}")
