@@ -121,7 +121,7 @@ for name, mdl in models_to_run.items():
     y_pred_cv = cross_val_predict(mdl, X_test, y_test, cv=cv)
 
     print(f"\nClassification Report untuk {name} dengan fitur terbaik (cross-validation):")
-    print(classification_report(y, y_pred_cv))
+    print(classification_report(y_test, y_pred_cv))
 
 # === 7. Summary hasil ===
 print("\n\n=== Summary Best Results ===")
