@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import os
 from google.colab import drive
+
 # 1. Mount Google Drive
 drive.mount('/content/drive')
 # 2. Tentukan Path
